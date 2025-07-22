@@ -1,19 +1,22 @@
 import cmd
-import sqlite3
+import getpass  # For masked password input
 import os
 import sys
-# Add project root to sys.path for imports (robust for root launcher)
+# Add project root to sys.path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.db import init_db  # Import DB init
+import sqlcipher3 as sqlite  # Use for encryption (replaces sqlite3)
 
 class DataDeleteConsole(cmd.Cmd):
     intro = 'Welcome to GHOSTWIPE (GHWI). Type help or ? for commands. Type quit to exit.\n'
     prompt = '(GHWI) '
 
-    def __init__(self):
+    def __init__(self, passphrase):
         super().__init__()
-        init_db()  # Ensure DB is initialized
-        self.conn = sqlite3.connect(os.path.join('data', 'pii_data.db'))
+        self.passphrase = passphrase
+        init_db(self.passphrase)  # Initialize with passphrase
+        self.conn = sqlite.connect(os.path.join('data', 'pii_data.db'))
+        self.conn.execute(f"PRAGMA key = '{self.passphrase}'")  # Re-key for connection
         self.cursor = self.conn.cursor()
         self.show_menu()
 
@@ -85,4 +88,25 @@ class DataDeleteConsole(cmd.Cmd):
         self.show_menu()
 
 if __name__ == "__main__":
-    DataDeleteConsole().cmdloop()
+    db_path = os.path.join('data', 'pii_data.db')
+    if not os.path.exists(db_path):
+        print("First-time setup: No database found.")
+        encrypt_choice = input("Would you like to encrypt the database? (y/n): ").lower()
+        if encrypt_choice == 'y':
+            passphrase = getpass.getpass("Enter a strong password: ")
+            confirm_passphrase = getpass.getpass("Confirm password: ")
+            if passphrase != confirm_passphrase:
+                print("Passwords do not match. Exiting.")
+                sys.exit(1)
+        else:
+            print("Database will not be encrypted. Exiting for security reasons.")
+            sys.exit(1)
+    else:
+        passphrase = getpass.getpass("Enter database password: ")
+
+    # Launch console with passphrase (will verify in init_db)
+    try:
+        DataDeleteConsole(passphrase).cmdloop()
+    except sqlite.Error as e:
+        print(f"Invalid password or database error: {e}. Exiting.")
+        sys.exit(1)

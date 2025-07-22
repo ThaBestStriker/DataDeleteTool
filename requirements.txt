@@ -3,3 +3,4 @@ beautifulsoup4>=4.12.2
 requests>=2.31.0
 click>=8.1.7  # For CLI menu
 pytest>=7.4.0  # For testing
+sqlcipher3-wheels
