@@ -1,10 +1,5 @@
 # DataDeleteTool Development Roadmap
 
-As we're building the DataDeleteTool—a Python-based, cross-platform tool for scanning PII from data brokers and online sources (using IntelTechniques resources), automating deletion requests, and tracking opt-outs—here's a structured roadmap. It follows a typical software development lifecycle: **Planning & Setup**, **Core Development**, **Advanced Features**, **Testing & Refinement**, and **Deployment & Maintenance**. Each phase includes key features/tasks, estimated priorities (High/Medium/Low), dependencies, and integration notes with our tools (VS Code for coding/debugging, Sublime Merge for Git commits/pushes to https://github.com/ThaBestStriker/DataDeleteTool).
-Focus: Establish foundations to ensure cross-platform compatibility and version control.
-
-This roadmap is flexible— we can add/remove features based on progress. We'll track it in a `ROADMAP.md` file in the repo for easy updates via VS Code and commits in Sublime Merge.
-
 ## Phase 1: Planning & Setup (1-2 weeks)
 - **Initialize Project Structure** (High): Create folders (e.g., `src/`, `data/`, `docs/`), add `.gitignore` (ignore `.venv`, `*.db`), and set up `requirements.txt` (e.g., selenium, beautifulsoup4, sqlite3, click). Commit initial structure using Sublime Merge.
 - **Configure Virtual Environment & IDE** (High): Set up Python 3.10+ venv in VS Code (select interpreter), install deps via `pip`. Add VS Code settings.json for Python linting/debugging.
