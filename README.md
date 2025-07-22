@@ -1,4 +1,4 @@
-# DataDeleteTool
+# GHOSTWIPE
 This tool utilizes the IntelTechniques "Personal Data Removal Guide" workbook to parse data broker sites for personal information and automate data deletion requests. It also leverages IntelTechniques OSINT tools to manually cross-reference personal data and further generate opt-out requests. Tool tracks active opt-out requests and verifies data was removed until user marks opt-out request as "resolved." 
 
 
