@@ -76,7 +76,7 @@ def encrypt_existing_db(db_path, passphrase):
     conn = sqlcipher3.connect(db_path)
     try:
         key_hex = passphrase.encode('utf-8').hex()
-        conn.execute(f"PRAGMA rekey = x'{key_hex}'")  # Encrypt with new key as raw hex
+        conn.execute(f'PRAGMA rekey = "x\'{key_hex}\'"')  # Encrypt with new key as raw hex blob with proper quoting
         conn.execute("PRAGMA kdf_iter = 640000")  # Set high iterations
         conn.commit()
         print("Database encrypted successfully.")

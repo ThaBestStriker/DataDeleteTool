@@ -21,7 +21,7 @@ class DataDeleteConsole(cmd.Cmd):
         if self.passphrase:
             self.conn = sqlcipher3.connect(os.path.join('data', 'pii_data.db'))
             key_hex = self.passphrase.encode('utf-8').hex()
-            self.conn.execute(f"PRAGMA key = x'{key_hex}'")  # Re-key for connection as raw hex
+            self.conn.execute(f'PRAGMA key = "x\'{key_hex}\'"')  # Re-key for connection as raw hex blob with proper quoting
         else:
             self.conn = sqlite3.connect(os.path.join('data', 'pii_data.db'))
         self.cursor = self.conn.cursor()

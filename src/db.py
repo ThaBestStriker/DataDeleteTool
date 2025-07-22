@@ -7,16 +7,12 @@ def init_db(passphrase):
     db_path = os.path.join('data', 'pii_data.db')
     if passphrase:
         sqlite = sqlcipher3
-        key_hex = passphrase.encode('utf-8').hex()
-        key_sql = f"x'{key_hex}'"
     else:
         sqlite = sqlite3
-        key_sql = None  # No key for unencrypted
-
     conn = sqlite.connect(db_path)
     try:
-        if key_sql:
-            conn.execute(f"PRAGMA key = {key_sql}")  # Set AES-256 encryption key as raw hex
+        if passphrase:
+            conn.execute(f"PRAGMA key = '{passphrase.replace(\"'\", \"''\")}'")  # Set AES-256 encryption key with escaped single quotes
             conn.execute("PRAGMA kdf_iter = 640000")  # High iterations for brute-force resistance
             conn.execute("PRAGMA cipher_page_size = 4096")  # Optimize for security/performance
         # Users table
@@ -28,7 +24,7 @@ def init_db(passphrase):
             last_name TEXT,
             primary_email TEXT,
             primary_phone TEXT,
-            state TEXT  # For privacy law tracking (e.g., CA for CCPA)
+            state TEXT -- For privacy law tracking (e.g., CA for CCPA)
         )
         ''')
 
