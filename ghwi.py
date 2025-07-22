@@ -9,6 +9,7 @@ import logging  # For debug logging
 import shutil  # For DB copy in backups
 from src.main import DataDeleteConsole  # Import the CLI class
 import sqlcipher3  # For encrypted operations (rekey)
+from src.ascii_art import animate  # Import ASCII animation
 
 # Ctrl+C handler
 def signal_handler(sig, frame):
@@ -19,6 +20,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Clear screen at launch for clean UI
 os.system('clear')
+animate()  # Display animated ASCII art at launch (duration 3 seconds)
 
 # Setup debug logging if --debug flag (file-only, no console)
 if '--debug' in sys.argv:
