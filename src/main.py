@@ -2,10 +2,11 @@ import cmd
 import getpass  # For masked password input
 import os
 import sys
-# Add project root to sys.path for imports
+# Add project root to sys.path for imports (robust for root launcher)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.db import init_db  # Import DB init
-import sqlcipher3 as sqlite  # Use for encryption (replaces sqlite3)
+import sqlite3  # For unencrypted mode
+import sqlcipher3  # For encrypted mode
 
 class DataDeleteConsole(cmd.Cmd):
     intro = 'Welcome to GHOSTWIPE (GHWI). Type help or ? for commands. Type quit to exit.\n'
@@ -14,9 +15,12 @@ class DataDeleteConsole(cmd.Cmd):
     def __init__(self, passphrase):
         super().__init__()
         self.passphrase = passphrase
-        init_db(self.passphrase)  # Initialize with passphrase
-        self.conn = sqlite.connect(os.path.join('data', 'pii_data.db'))
-        self.conn.execute(f"PRAGMA key = '{self.passphrase}'")  # Re-key for connection
+        init_db(self.passphrase)  # Initialize with passphrase (handles unencrypted if '')
+        if self.passphrase:
+            self.conn = sqlcipher3.connect(os.path.join('data', 'pii_data.db'))
+            self.conn.execute(f"PRAGMA key = '{self.passphrase}'")  # Re-key for connection
+        else:
+            self.conn = sqlite3.connect(os.path.join('data', 'pii_data.db'))
         self.cursor = self.conn.cursor()
         self.show_menu()
 
@@ -102,11 +106,47 @@ if __name__ == "__main__":
             print("Database will not be encrypted. Exiting for security reasons.")
             sys.exit(1)
     else:
-        passphrase = getpass.getpass("Enter database password: ")
+        if not is_db_encrypted(db_path):
+            print("Existing database is unencrypted.")
+            while True:
+                print("Options:")
+                print("1: Encrypt the database")
+                print("2: Create a new database")
+                print("3: Close GHOSTWIPE Launcher")
+                choice = input("Enter choice (1/2/3): ").strip().lower()
+                if choice == 'unencrypt_db':
+                    passphrase = unencrypt_db(db_path)  # Proceed without password
+                    break
+                elif choice == '1':
+                    # Backup before encryption (copy, not move)
+                    make_backup(db_path, 'pre_encrypt.bak')
+                    passphrase = getpass.getpass("Enter a strong password: ")
+                    confirm_passphrase = getpass.getpass("Confirm password: ")
+                    if passphrase != confirm_passphrase:
+                        print("Passwords do not match. Exiting.")
+                        sys.exit(1)
+                    try:
+                        encrypt_existing_db(db_path, passphrase)
+                    except sqlcipher3.Error as e:
+                        handle_encryption_error(e)
+                        continue  # Return to menu on error
+                    break
+                elif choice == '2':
+                    passphrase = backup_and_create_new(db_path)
+                    if passphrase is None:
+                        continue  # Return to menu after revert
+                    break
+                elif choice == '3':
+                    print("Closing GHOSTWIPE.")
+                    sys.exit(0)
+                else:
+                    print("Invalid choice. Try again.")
+        else:
+            passphrase = getpass.getpass("Enter database password: ")
 
     # Launch console with passphrase (will verify in init_db)
     try:
         DataDeleteConsole(passphrase).cmdloop()
-    except sqlite.Error as e:
-        print(f"Invalid password or database error: {e}. Exiting.")
+    except Exception as e:  # Catch general errors (e.g., invalid passphrase)
+        print(f"Error: {e}. Exiting.")
         sys.exit(1)
