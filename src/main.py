@@ -1,14 +1,15 @@
 import cmd
-import getpass  # For masked password input
+import getpass
 import os
 import sys
-# Add project root to sys.path for imports (robust for root launcher)
+from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from src.db import init_db  # Import DB init
-import sqlite3  # For unencrypted mode
-import sqlcipher3  # For encrypted mode
-import gnureadline as readline  # For tab autocomplete on macOS (gnureadline installed in venv)
+from src.db import init_db
+import sqlite3
+import sqlcipher3
+import gnureadline as readline
 readline.parse_and_bind("tab: complete")
+from src.view_db import view_db  # Import view_db
 
 class DataDeleteConsole(cmd.Cmd):
     intro = 'Welcome to GHOSTWIPE (GHWI). Type help or ? for commands. Type quit to exit.\n'
@@ -17,11 +18,12 @@ class DataDeleteConsole(cmd.Cmd):
     def __init__(self, passphrase):
         super().__init__()
         self.passphrase = passphrase
-        init_db(self.passphrase)  # Initialize with passphrase (handles unencrypted if '')
+        init_db(self.passphrase)
         if self.passphrase:
             self.conn = sqlcipher3.connect(os.path.join('data', 'pii_data.db'))
-            key_hex = self.passphrase.encode('utf-8').hex()
-            self.conn.execute(f'PRAGMA key = "x\'{key_hex}\'"')  # Re-key for connection as raw hex blob with proper quoting
+            self.conn.execute(f"PRAGMA key = '{self.passphrase}'")
+            self.conn.execute("PRAGMA kdf_iter = 640000")
+            self.conn.execute("PRAGMA cipher_page_size = 4096")
         else:
             self.conn = sqlite3.connect(os.path.join('data', 'pii_data.db'))
         self.cursor = self.conn.cursor()
@@ -35,7 +37,6 @@ class DataDeleteConsole(cmd.Cmd):
         print("Type a number (1-3) or command name (partial + tab to autocomplete).")
 
     def precmd(self, line):
-        # Map numbers to commands
         if line == '1':
             return 'user_info'
         elif line == '2':
@@ -46,11 +47,9 @@ class DataDeleteConsole(cmd.Cmd):
 
     def do_user_info(self, arg):
         """Populate or modify user PII in the database."""
-        # Example prompts; expand with full PII fields
         first_name = input("Enter first name: ")
         last_name = input("Enter last name: ")
         state = input("Enter state (e.g., CA): ")
-        # Insert example (expand for addresses, emails, etc.)
         self.cursor.execute("INSERT INTO users (first_name, last_name, state) VALUES (?, ?, ?)",
                             (first_name, last_name, state))
         self.conn.commit()
@@ -59,15 +58,40 @@ class DataDeleteConsole(cmd.Cmd):
 
     def do_database(self, arg):
         """Manage broker sites and opt-out links."""
-        # Example: Add a broker site
-        name = input("Enter broker name: ")
-        url = input("Enter broker URL: ")
-        deletion_url = input("Enter deletion URL: ")
-        self.cursor.execute("INSERT INTO broker_sites (name, url, deletion_url) VALUES (?, ?, ?)",
-                            (name, url, deletion_url))
-        self.conn.commit()
-        print("Broker site added.")
-        # TODO: Add view/edit opt-out requests
+        while True:
+            print("\nDatabase Options:")
+            print("1: View entries")
+            print("2: Delete entries (not implemented)")
+            print("3: Modify entries (not implemented)")
+            print("4: Add entries (manual)")
+            print("5: Back to main menu")
+            choice = input("Enter choice (1-5): ").strip()
+            
+            if choice == '1':
+                view_db(self.passphrase)
+            elif choice == '2':
+                print("Delete entries not implemented yet.")
+            elif choice == '3':
+                print("Modify entries not implemented yet.")
+            elif choice == '4':
+                name = input("Enter broker name: ")
+                url = input("Enter broker URL: ")
+                deletion_url = input("Enter deletion URL: ")
+                privacy_policy = input("Enter privacy policy URL (optional): ")
+                contact = input("Enter contact info (optional): ")
+                requirements = input("Enter requirements (optional): ")
+                notes = input("Enter notes (optional): ")
+                last_updated = datetime.date.today().isoformat()
+                self.cursor.execute("""
+                INSERT INTO broker_sites (name, url, deletion_url, privacy_policy, contact, requirements, notes, last_updated)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (name, url, deletion_url, privacy_policy or None, contact or None, requirements or None, notes or None, last_updated))
+                self.conn.commit()
+                print("Broker site added.")
+            elif choice == '5':
+                break
+            else:
+                print("Invalid choice. Please enter 1-5.")
         self.show_menu()
 
     def do_scan(self, arg):
@@ -81,7 +105,6 @@ class DataDeleteConsole(cmd.Cmd):
         self.conn.close()
         return True
 
-    # Completer for all commands (supports partial + tab)
     def complete(self, text, state):
         options = ['user_info', 'database', 'scan', 'quit']
         matches = [opt for opt in options if opt.startswith(text)]
@@ -109,47 +132,11 @@ if __name__ == "__main__":
             print("Database will not be encrypted. Exiting for security reasons.")
             sys.exit(1)
     else:
-        if not is_db_encrypted(db_path):
-            print("Existing database is unencrypted.")
-            while True:
-                print("Options:")
-                print("1: Encrypt the database")
-                print("2: Create a new database")
-                print("3: Close GHOSTWIPE Launcher")
-                choice = input("Enter choice (1/2/3): ").strip().lower()
-                if choice == 'unencrypt_db':
-                    passphrase = unencrypt_db(db_path)  # Proceed without password
-                    break
-                elif choice == '1':
-                    # Backup before encryption (copy, not move)
-                    make_backup(db_path, 'pre_encrypt.bak')
-                    passphrase = getpass.getpass("Enter a strong password: ")
-                    confirm_passphrase = getpass.getpass("Confirm password: ")
-                    if passphrase != confirm_passphrase:
-                        print("Passwords do not match. Exiting.")
-                        sys.exit(1)
-                    try:
-                        encrypt_existing_db(db_path, passphrase)
-                    except sqlcipher3.Error as e:
-                        handle_encryption_error(e)
-                        continue  # Return to menu on error
-                    break
-                elif choice == '2':
-                    passphrase = backup_and_create_new(db_path)
-                    if passphrase is None:
-                        continue  # Return to menu after revert
-                    break
-                elif choice == '3':
-                    print("Closing GHOSTWIPE.")
-                    sys.exit(0)
-                else:
-                    print("Invalid choice. Try again.")
-        else:
-            passphrase = getpass.getpass("Enter database password: ")
+        # Simplified passphrase prompt (no encryption handling needed here)
+        passphrase = getpass.getpass("Enter database password: ")
 
-    # Launch console with passphrase (will verify in init_db)
     try:
         DataDeleteConsole(passphrase).cmdloop()
-    except Exception as e:  # Catch general errors (e.g., invalid passphrase)
+    except Exception as e:
         print(f"Error: {e}. Exiting.")
         sys.exit(1)
