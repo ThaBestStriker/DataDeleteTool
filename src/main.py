@@ -7,6 +7,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.db import init_db  # Import DB init
 import sqlite3  # For unencrypted mode
 import sqlcipher3  # For encrypted mode
+import readline
+readline.parse_and_bind("tab: complete")
 
 class DataDeleteConsole(cmd.Cmd):
     intro = 'Welcome to GHOSTWIPE (GHWI). Type help or ? for commands. Type quit to exit.\n'

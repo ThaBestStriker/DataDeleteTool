@@ -9,7 +9,6 @@ import logging  # For debug logging
 import shutil  # For DB copy in backups
 from src.main import DataDeleteConsole  # Import the CLI class
 import sqlcipher3  # For encrypted operations (rekey)
-from src.ascii_art import animate  # Import ASCII animation
 
 # Ctrl+C handler
 def signal_handler(sig, frame):
@@ -20,7 +19,6 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # Clear screen at launch for clean UI
 os.system('clear')
-animate()  # Display animated ASCII art at launch (duration 3 seconds)
 
 # Setup debug logging if --debug flag (file-only, no console)
 if '--debug' in sys.argv:
@@ -138,6 +136,10 @@ def backup_and_create_new(db_path):
         log_input("Enter a strong password for new DB: ", "[masked]")
         log_input("Confirm password: ", "[masked]")
         if passphrase == confirm_passphrase:
+            # Ensure no residual file
+            if os.path.exists(db_path):
+                os.remove(db_path)
+                log_debug(f"Removed residual file at {db_path} before new creation.")
             return passphrase
         print("Passwords do not match.")
         retry = input("Try again? (Y/n): ").lower()
@@ -228,6 +230,7 @@ def unencrypt_db(db_path):
         ''')
         conn.commit()
         print("New unencrypted DB created for dev mode.")
+        log_debug("New unencrypted DB created for dev mode.")
     finally:
         conn.close()
     return ''  # Proceed without password
@@ -256,9 +259,7 @@ if __name__ == "__main__":
             print("Database will not be encrypted. Exiting for security reasons.")
             sys.exit(1)
     else:
-        if '--dev-db' in sys.argv:
-            passphrase = unencrypt_db(db_path)  # Run at launch if flagged, bypass menu/password
-        elif not is_db_encrypted(db_path):
+        if not is_db_encrypted(db_path):
             print("Existing database is unencrypted.")
             while True:
                 print("Options:")
