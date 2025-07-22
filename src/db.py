@@ -7,12 +7,16 @@ def init_db(passphrase):
     db_path = os.path.join('data', 'pii_data.db')
     if passphrase:
         sqlite = sqlcipher3
+        key_hex = passphrase.encode('utf-8').hex()
+        key_sql = f"x'{key_hex}'"
     else:
         sqlite = sqlite3
+        key_sql = None  # No key for unencrypted
+
     conn = sqlite.connect(db_path)
     try:
-        if passphrase:
-            conn.execute(f"PRAGMA key = '{passphrase}'")  # Set AES-256 encryption key
+        if key_sql:
+            conn.execute(f"PRAGMA key = {key_sql}")  # Set AES-256 encryption key as raw hex
             conn.execute("PRAGMA kdf_iter = 640000")  # High iterations for brute-force resistance
             conn.execute("PRAGMA cipher_page_size = 4096")  # Optimize for security/performance
         # Users table
@@ -20,12 +24,14 @@ def init_db(passphrase):
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY AUTOINCREMENT,
             first_name TEXT,
+            middle_name TEXT,
             last_name TEXT,
             primary_email TEXT,
             primary_phone TEXT,
-            state TEXT  -- For privacy law tracking (e.g., CA for CCPA)
+            state TEXT  # For privacy law tracking (e.g., CA for CCPA)
         )
         ''')
+
         # Addresses table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS addresses (
@@ -39,6 +45,7 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
+
         # Emails table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS emails (
@@ -50,6 +57,7 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
+
         # Usernames table (for social media accounts)
         conn.execute('''
         CREATE TABLE IF NOT EXISTS usernames (
@@ -61,6 +69,7 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
+
         # Broker sites table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS broker_sites (
@@ -71,6 +80,7 @@ def init_db(passphrase):
             deletion_url TEXT
         )
         ''')
+
         # Opt-out requests table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS opt_out_requests (
@@ -83,10 +93,11 @@ def init_db(passphrase):
             FOREIGN KEY (site_id) REFERENCES broker_sites (site_id)
         )
         ''')
+
         conn.commit()
         # Verify by running a simple query
         conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        print("Database initialized successfully.")
+        print("Database initialized successfully (encrypted: {})".format(bool(passphrase)))
     except Exception as e:
         print(f"Error initializing database: {e}")
         raise

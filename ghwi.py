@@ -75,7 +75,8 @@ def encrypt_existing_db(db_path, passphrase):
     """Encrypt an existing unencrypted DB using rekey."""
     conn = sqlcipher3.connect(db_path)
     try:
-        conn.execute(f"PRAGMA rekey = '{passphrase}'")  # Encrypt with new key
+        key_hex = passphrase.encode('utf-8').hex()
+        conn.execute(f"PRAGMA rekey = x'{key_hex}'")  # Encrypt with new key as raw hex
         conn.execute("PRAGMA kdf_iter = 640000")  # Set high iterations
         conn.commit()
         print("Database encrypted successfully.")
@@ -156,83 +157,10 @@ def unencrypt_db(db_path):
     """Hidden dev command: Backup, create new unencrypted DB, proceed without password."""
     if os.path.exists(db_path):
         make_backup(db_path)
-    # Create new unencrypted DB
-    conn = sqlite3.connect(db_path)
-    try:
-        # Run schema creation without encryption (copy from init_db but use sqlite3)
-        # Users table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            first_name TEXT,
-            last_name TEXT,
-            primary_email TEXT,
-            primary_phone TEXT,
-            state TEXT  -- For privacy law tracking (e.g., CA for CCPA)
-        )
-        ''')
-        # Addresses table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS addresses (
-            address_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            street TEXT,
-            city TEXT,
-            state TEXT,
-            zip TEXT,
-            is_current BOOLEAN,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-        ''')
-        # Emails table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS emails (
-            email_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            email_address TEXT,
-            source_site TEXT,
-            is_active BOOLEAN,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-        ''')
-        # Usernames table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS usernames (
-            username_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            username TEXT,
-            platform TEXT,
-            is_tied BOOLEAN,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-        ''')
-        # Broker sites table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS broker_sites (
-            site_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT,
-            name TEXT,
-            last_updated TEXT,
-            deletion_url TEXT
-        )
-        ''')
-        # Opt-out requests table
-        conn.execute('''
-        CREATE TABLE IF NOT EXISTS opt_out_requests (
-            request_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            site_id INTEGER,
-            status TEXT,  -- pending, resolved
-            request_date TEXT,
-            FOREIGN KEY (user_id) REFERENCES users (user_id),
-            FOREIGN KEY (site_id) REFERENCES broker_sites (site_id)
-        )
-        ''')
-        conn.commit()
-        print("New unencrypted DB created for dev mode.")
-        log_debug("New unencrypted DB created for dev mode.")
-    finally:
-        conn.close()
+    from src.db import init_db  # Import here to avoid circular imports if needed
+    init_db('')  # Call db.py to create unencrypted DB
+    print("New unencrypted DB created for dev mode.")
+    log_debug("New unencrypted DB created for dev mode.")
     return ''  # Proceed without password
 
 def handle_encryption_error(e):

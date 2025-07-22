@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.db import init_db  # Import DB init
 import sqlite3  # For unencrypted mode
 import sqlcipher3  # For encrypted mode
-import readline
+import gnureadline as readline  # For tab autocomplete on macOS (gnureadline installed in venv)
 readline.parse_and_bind("tab: complete")
 
 class DataDeleteConsole(cmd.Cmd):
@@ -20,7 +20,8 @@ class DataDeleteConsole(cmd.Cmd):
         init_db(self.passphrase)  # Initialize with passphrase (handles unencrypted if '')
         if self.passphrase:
             self.conn = sqlcipher3.connect(os.path.join('data', 'pii_data.db'))
-            self.conn.execute(f"PRAGMA key = '{self.passphrase}'")  # Re-key for connection
+            key_hex = self.passphrase.encode('utf-8').hex()
+            self.conn.execute(f"PRAGMA key = x'{key_hex}'")  # Re-key for connection as raw hex
         else:
             self.conn = sqlite3.connect(os.path.join('data', 'pii_data.db'))
         self.cursor = self.conn.cursor()
