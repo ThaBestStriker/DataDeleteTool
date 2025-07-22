@@ -1,2 +1,12 @@
 # DataDeleteTool
-Parses IntelTechniques' Personal Data Removal Guide to find personal info on data broker sites and automate deletion requests. Uses OSINT tools for manual data verification. For legal, ethical use only; unauthorized or criminal use is prohibited. Users are responsible for compliance with all laws.
+This tool utilizes the IntelTechniques "Personal Data Removal Guide" workbook to parse data broker sites for personal information and automate data deletion requests. It also leverages IntelTechniques OSINT tools to manually cross-reference personal data and further generate opt-out requests. Tool tracks active opt-out requests and verifies data was removed until user marks opt-out request as "resolved." 
+
+
+# State Privacy Laws
+Tool also tracks whether user is resident of state with privacy laws and tailors opt-out requests. Applicable states: California (CCPA/CPRA), Virginia (VCDPA), Colorado (CPA), Connecticut (CTDPA), Utah (UCPA), New Jersey (NJDPA), Oregon (OCPA), Texas (TDPSA), Montana (MTCDPA), Delaware (DPDPA), Iowa (ICDPA), Nebraska (NDPA), New Hampshire (NHPA), Tennessee (TIPA).
+
+Quick plug for contacting your state (and federal) congress if your state does not have data privacy laws.
+
+
+# Disclaimer
+This tool is designed solely for lawful and ethical purposes, such as personal data protection and authorized privacy management. Unauthorized use, including but not limited to accessing, collecting, or manipulating data without explicit consent or legal authorization, is strictly prohibited. The developers of this tool are not responsible for any misuse, illegal activities, or damages resulting from its use. Users are solely responsible for ensuring compliance with all applicable local, state, national, and international laws and regulations.
