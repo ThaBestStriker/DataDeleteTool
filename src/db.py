@@ -16,12 +16,16 @@ def init_db(passphrase):
     else:
         sqlite = sqlite3
     conn = sqlite.connect(db_path)
+    debug_output = []
     try:
         if passphrase:
             conn.execute(f"PRAGMA key = '{passphrase}'")  # Use raw passphrase
-            conn.execute("PRAGMA kdf_iter = 640000")  # High iterations for brute-force resistance
-            conn.execute("PRAGMA cipher_page_size = 4096")  # Optimize for security/performance
-        conn.execute("PRAGMA foreign_keys = ON")  # Enforce foreign key constraints
+            conn.execute("PRAGMA kdf_iter = 64000")  # Reduced iterations for compatibility
+            conn.execute("PRAGMA cipher_page_size = 4096")
+            debug_output.append("SQLCipher PRAGMA settings applied: key, kdf_iter=64000, cipher_page_size=4096")
+        conn.execute("PRAGMA foreign_keys = ON")
+        debug_output.append("Foreign keys enabled")
+        
         # Drop and recreate broker_sites table to ensure correct schema
         conn.execute("DROP TABLE IF EXISTS broker_sites")
         # Users table
@@ -36,7 +40,6 @@ def init_db(passphrase):
             state TEXT
         )
         ''')
-
         # Addresses table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS addresses (
@@ -50,7 +53,6 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
-
         # Emails table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS emails (
@@ -62,7 +64,6 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
-
         # Usernames table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS usernames (
@@ -74,7 +75,6 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
-
         # Broker sites table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS broker_sites (
@@ -89,7 +89,6 @@ def init_db(passphrase):
             last_updated TEXT
         )
         ''')
-
         # Opt-out requests table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS opt_out_requests (
@@ -102,15 +101,30 @@ def init_db(passphrase):
             FOREIGN KEY (site_id) REFERENCES broker_sites (site_id)
         )
         ''')
-
         conn.commit()
+        debug_output.append("Database tables created")
+        
         # Populate broker_sites and get update date
         last_updated = populate_broker_sites(conn)
         print(f"Workbook last updated: {last_updated if last_updated else 'Unknown'}")
         conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        debug_output.append("Database initialization completed")
         print("Database initialized successfully (encrypted: {})".format(bool(passphrase)))
+        
+        # Write debug output to file
+        debug_file = os.path.join('data', 'debug_init_output.txt')
+        debug_file = backup_existing_file(debug_file)
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write("\n".join(debug_output))
+        print(f"Initialization debug output written to {debug_file}")
+        
     except Exception as e:
-        print(f"Error initializing database: {e}")
+        debug_output.append(f"Error initializing database: {e}")
+        debug_file = os.path.join('data', 'debug_init_output.txt')
+        debug_file = backup_existing_file(debug_file)
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write("\n".join(debug_output))
+        print(f"Error initializing database: {e}. Debug output written to {debug_file}")
         raise
     finally:
         conn.close()
@@ -130,7 +144,7 @@ def backup_existing_file(file_path):
         i += 1
 
 def populate_broker_sites(conn):
-    """Populate broker_sites table from IntelTechniques PDF. Clears existing entries and repopulates."""
+    """Populate broker_sites table from IntelTechniques PDF. Retains existing entries."""
     cursor = conn.cursor()
     debug_output = []
     try:
@@ -149,11 +163,6 @@ def populate_broker_sites(conn):
             return None
 
         print("Populating broker_sites from https://inteltechniques.com/data/workbook.pdf...")
-        # Clear existing entries
-        cursor.execute("DELETE FROM broker_sites")
-        debug_output.append("Cleared existing entries from broker_sites")
-        print("Cleared existing entries from broker_sites")
-        
         # Load PDF
         response = requests.get(url)
         response.raise_for_status()
@@ -166,7 +175,7 @@ def populate_broker_sites(conn):
         
         raw_text = unicodedata.normalize('NFKD', raw_text).strip()
         debug_output.append("Raw text (first 1000 chars):\n" + raw_text[:1000] + "...")
-        print("Raw text (first 500 chars):", raw_text[:500] + "...")  # Console debug
+        print("Raw text (first 500 chars):", raw_text[:500] + "...")
         
         # Hardcode update date to October 2024
         update_str = "October 2024"
@@ -185,9 +194,9 @@ def populate_broker_sites(conn):
         }
         
         # Split raw text into entry blocks
-        entry_blocks = re.split(r'\n*\s*Service:\s*', raw_text)[1:]  # Handle newlines and whitespace
+        entry_blocks = re.split(r'\n*\s*Service:\s*', raw_text)[1:]
         debug_output.append(f"Found entry blocks: {len(entry_blocks)}")
-        print(f"Found entry blocks: {len(entry_blocks)}")  # Console debug
+        print(f"Found entry blocks: {len(entry_blocks)}")
         
         for i, block in enumerate(entry_blocks):
             block = block.strip()
@@ -226,9 +235,7 @@ def populate_broker_sites(conn):
                                 value = re.sub(r'\(/cdn-cgi/.*?\)', '', value).strip('[] ,')
                                 value = re.sub(r'\[|\]', '', value)
                         elif key == "notes":
-                            # Remove Date, Response, Verified Removal from notes
                             value = re.sub(r'\n*Date:.*?Verified Removal:.*?(?=\n|$)', '', value, flags=re.DOTALL)
-                            # Remove everything from Copyright or EXTREME PRIVACY onward
                             value = re.sub(r'\n*(Copyright © \d{4} by IntelTechniques|EXTREME PRIVACY \| PERSONAL DATA REMOVAL WORKBOOK \| INTELTECHNIQUES\.COM).*', '', value, flags=re.DOTALL)
                             value = value.strip()
                         current_entry[key] = value

@@ -7,11 +7,11 @@ def view_db(passphrase):
     db_path = os.path.join('data', 'pii_data.db')
     conn = None
     try:
-        conn = sqlite3.connect(db_path)  # sqlcipher3 is used implicitly
+        conn = sqlcipher3.connect(db_path)
         cursor = conn.cursor()
         if passphrase:
             cursor.execute(f"PRAGMA key = '{passphrase}'")
-            cursor.execute("PRAGMA kdf_iter = 640000")
+            cursor.execute("PRAGMA kdf_iter = 64000")
             cursor.execute("PRAGMA cipher_page_size = 4096")
         cursor.execute("PRAGMA foreign_keys = ON")
         
@@ -41,13 +41,13 @@ def view_db(passphrase):
                         print("\nEntry:")
                         print(f"Site ID: {row[0]}")
                         print(f"Name: {row[1]}")
-                        print(f"URL: {row[2]}")
-                        print(f"Deletion URL: {row[3]}")
-                        print(f"Privacy Policy: {row[4]}")
-                        print(f"Contact: {row[5]}")
-                        print(f"Requirements: {row[6]}")
-                        print(f"Notes: {row[7]}")
-                        print(f"Last Updated: {row[8]}")
+                        print(f"URL: {row[2] or 'None'}")
+                        print(f"Deletion URL: {row[3] or 'None'}")
+                        print(f"Privacy Policy: {row[4] or 'None'}")
+                        print(f"Contact: {row[5] or 'None'}")
+                        print(f"Requirements: {row[6] or 'None'}")
+                        print(f"Notes: {row[7] or 'None'}")
+                        print(f"Last Updated: {row[8] or 'None'}")
             
             elif choice == '2':
                 cursor.execute("SELECT site_id, name FROM broker_sites ORDER BY site_id")
@@ -68,13 +68,13 @@ def view_db(passphrase):
                         print("\nEntry:")
                         print(f"Site ID: {row[0]}")
                         print(f"Name: {row[1]}")
-                        print(f"URL: {row[2]}")
-                        print(f"Deletion URL: {row[3]}")
-                        print(f"Privacy Policy: {row[4]}")
-                        print(f"Contact: {row[5]}")
-                        print(f"Requirements: {row[6]}")
-                        print(f"Notes: {row[7]}")
-                        print(f"Last Updated: {row[8]}")
+                        print(f"URL: {row[2] or 'None'}")
+                        print(f"Deletion URL: {row[3] or 'None'}")
+                        print(f"Privacy Policy: {row[4] or 'None'}")
+                        print(f"Contact: {row[5] or 'None'}")
+                        print(f"Requirements: {row[6] or 'None'}")
+                        print(f"Notes: {row[7] or 'None'}")
+                        print(f"Last Updated: {row[8] or 'None'}")
                     else:
                         print(f"No entry found with site_id {site_id}.")
                 except ValueError:
@@ -90,7 +90,3 @@ def view_db(passphrase):
     finally:
         if conn:
             conn.close()
-
-if __name__ == "__main__":
-    passphrase = input("Enter database passphrase: ")
-    view_db(passphrase)

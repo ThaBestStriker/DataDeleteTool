@@ -9,7 +9,7 @@ import sqlite3
 import sqlcipher3
 import gnureadline as readline
 readline.parse_and_bind("tab: complete")
-from src.view_db import view_db  # Import view_db
+from src.view_db import view_db
 
 class DataDeleteConsole(cmd.Cmd):
     intro = 'Welcome to GHOSTWIPE (GHWI). Type help or ? for commands. Type quit to exit.\n'
@@ -22,7 +22,7 @@ class DataDeleteConsole(cmd.Cmd):
         if self.passphrase:
             self.conn = sqlcipher3.connect(os.path.join('data', 'pii_data.db'))
             self.conn.execute(f"PRAGMA key = '{self.passphrase}'")
-            self.conn.execute("PRAGMA kdf_iter = 640000")
+            self.conn.execute("PRAGMA kdf_iter = 64000")
             self.conn.execute("PRAGMA cipher_page_size = 4096")
         else:
             self.conn = sqlite3.connect(os.path.join('data', 'pii_data.db'))
@@ -132,7 +132,6 @@ if __name__ == "__main__":
             print("Database will not be encrypted. Exiting for security reasons.")
             sys.exit(1)
     else:
-        # Simplified passphrase prompt (no encryption handling needed here)
         passphrase = getpass.getpass("Enter database password: ")
 
     try:
