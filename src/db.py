@@ -26,9 +26,7 @@ def init_db(passphrase):
         conn.execute("PRAGMA foreign_keys = ON")
         debug_output.append("Foreign keys enabled")
         
-        # Drop and recreate broker_sites table to ensure correct schema
-        conn.execute("DROP TABLE IF EXISTS broker_sites")
-        # Users table
+        # Create tables if they don't exist (no dropping to preserve data)
         conn.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +38,6 @@ def init_db(passphrase):
             state TEXT
         )
         ''')
-        # Addresses table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS addresses (
             address_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +50,6 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
-        # Emails table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS emails (
             email_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,7 +60,16 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
-        # Usernames table
+        conn.execute('''
+        CREATE TABLE IF NOT EXISTS phone_numbers (
+            phone_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            phone_number TEXT,
+            source_site TEXT,
+            is_active BOOLEAN,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        )
+        ''')
         conn.execute('''
         CREATE TABLE IF NOT EXISTS usernames (
             username_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,7 +80,6 @@ def init_db(passphrase):
             FOREIGN KEY (user_id) REFERENCES users (user_id)
         )
         ''')
-        # Broker sites table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS broker_sites (
             site_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +93,6 @@ def init_db(passphrase):
             last_updated TEXT
         )
         ''')
-        # Opt-out requests table
         conn.execute('''
         CREATE TABLE IF NOT EXISTS opt_out_requests (
             request_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,8 +104,18 @@ def init_db(passphrase):
             FOREIGN KEY (site_id) REFERENCES broker_sites (site_id)
         )
         ''')
+        conn.execute('''
+        CREATE TABLE IF NOT EXISTS cleaning_records (
+            record_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            site_id INTEGER,
+            site_name TEXT,
+            date_cleaned TEXT,
+            date_confirmed_deleted TEXT,
+            FOREIGN KEY (site_id) REFERENCES broker_sites (site_id)
+        )
+        ''')
         conn.commit()
-        debug_output.append("Database tables created")
+        debug_output.append("Database tables created or verified")
         
         # Populate broker_sites and get update date
         last_updated = populate_broker_sites(conn)
@@ -144,7 +157,7 @@ def backup_existing_file(file_path):
         i += 1
 
 def populate_broker_sites(conn):
-    """Populate broker_sites table from IntelTechniques PDF. Retains existing entries."""
+    """Populate broker_sites table from IntelTechniques PDF. Updates existing entries."""
     cursor = conn.cursor()
     debug_output = []
     try:
@@ -245,6 +258,7 @@ def populate_broker_sites(conn):
                 elif current_entry and "notes" in current_entry:
                     current_entry["notes"] += " " + part
             if current_entry and "name" in current_entry and current_entry["name"]:
+                current_entry['last_updated'] = last_updated
                 debug_output.append(f"Parsed entry {i+1}: {current_entry}")
                 print(f"Parsed entry {i+1}: {current_entry}")
                 entries.append(current_entry)
@@ -252,11 +266,43 @@ def populate_broker_sites(conn):
                 debug_output.append(f"Skipping invalid entry {i+1} (missing or empty name): {block[:50]}...")
                 print(f"Skipping invalid entry {i+1} (missing or empty name): {block[:50]}...")
         
-        # Insert entries into database
+        # Get existing entries
+        cursor.execute("SELECT site_id, name, url, deletion_url, privacy_policy, contact, requirements, notes, last_updated FROM broker_sites")
+        existing_entries = {row[1]: row for row in cursor.fetchall()}
+        debug_output.append(f"Found {len(existing_entries)} existing broker_sites entries")
+        print(f"Found {len(existing_entries)} existing broker_sites entries")
+        
+        # Update or insert entries
+        updated_count = 0
+        inserted_count = 0
         for i, entry in enumerate(entries):
-            if "name" in entry and entry["name"]:
-                debug_output.append(f"Inserting entry {i+1}: {entry}")
-                print(f"Inserting entry {i+1}: {entry}")
+            if "name" not in entry or not entry["name"]:
+                debug_output.append(f"Skipping insertion {i+1} (no name): {entry}")
+                print(f"Skipping insertion {i+1} (no name): {entry}")
+                continue
+            name = entry["name"]
+            if name in existing_entries:
+                # Compare fields
+                existing = existing_entries[name]
+                fields_to_update = []
+                update_values = []
+                for field in ['url', 'deletion_url', 'privacy_policy', 'contact', 'requirements', 'notes', 'last_updated']:
+                    existing_value = existing[existing_entries[name][0:].index(field) + 1] or ''
+                    new_value = entry.get(field, '') or ''
+                    if existing_value != new_value:
+                        fields_to_update.append(f"{field} = ?")
+                        update_values.append(new_value)
+                if fields_to_update:
+                    update_values.append(existing[0])  # site_id
+                    cursor.execute(f"""
+                    UPDATE broker_sites
+                    SET {', '.join(fields_to_update)}
+                    WHERE site_id = ?
+                    """, update_values)
+                    updated_count += 1
+                    debug_output.append(f"Updated entry {i+1}: {name}")
+                    print(f"Updated entry {i+1}: {name}")
+            else:
                 cursor.execute('''
                 INSERT OR IGNORE INTO broker_sites 
                 (name, url, deletion_url, privacy_policy, contact, requirements, notes, last_updated)
@@ -271,9 +317,9 @@ def populate_broker_sites(conn):
                     entry.get("notes"),
                     last_updated
                 ))
-            else:
-                debug_output.append(f"Skipping insertion {i+1} (no name): {entry}")
-                print(f"Skipping insertion {i+1} (no name): {entry}")
+                inserted_count += 1
+                debug_output.append(f"Inserted entry {i+1}: {name}")
+                print(f"Inserted entry {i+1}: {name}")
         
         conn.commit()
         # Write debug output to file
@@ -283,7 +329,7 @@ def populate_broker_sites(conn):
             f.write("\n".join(debug_output))
         print(f"Debug output written to {debug_file}")
         
-        print(f"Populated {len(entries)} broker sites successfully.")
+        print(f"Updated {updated_count} and inserted {inserted_count} broker sites successfully.")
         return update_str or last_updated
     except Exception as e:
         debug_output.append(f"Error populating broker_sites: {e}")

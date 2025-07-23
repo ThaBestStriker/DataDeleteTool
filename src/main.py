@@ -10,6 +10,8 @@ import sqlcipher3
 import gnureadline as readline
 readline.parse_and_bind("tab: complete")
 from src.view_db import view_db
+from src.cleaning import cleaning
+from src.userinfo import userinfo
 
 class DataDeleteConsole(cmd.Cmd):
     intro = 'Welcome to GHOSTWIPE (GHWI). Type help or ? for commands. Type quit to exit.\n'
@@ -34,7 +36,8 @@ class DataDeleteConsole(cmd.Cmd):
         print("1: user_info - Populate or modify user PII")
         print("2: database - Manage broker sites and opt-out links")
         print("3: scan - Scan data brokers for PII")
-        print("Type a number (1-3) or command name (partial + tab to autocomplete).")
+        print("4: start_cleaning - Manage data broker cleaning requests")
+        print("Type a number (1-4) or command name (partial + tab to autocomplete).")
 
     def precmd(self, line):
         if line == '1':
@@ -43,17 +46,13 @@ class DataDeleteConsole(cmd.Cmd):
             return 'database'
         elif line == '3':
             return 'scan'
+        elif line == '4':
+            return 'start_cleaning'
         return line
 
     def do_user_info(self, arg):
         """Populate or modify user PII in the database."""
-        first_name = input("Enter first name: ")
-        last_name = input("Enter last name: ")
-        state = input("Enter state (e.g., CA): ")
-        self.cursor.execute("INSERT INTO users (first_name, last_name, state) VALUES (?, ?, ?)",
-                            (first_name, last_name, state))
-        self.conn.commit()
-        print("User info added/updated.")
+        userinfo(self.passphrase)
         self.show_menu()
 
     def do_database(self, arg):
@@ -99,6 +98,11 @@ class DataDeleteConsole(cmd.Cmd):
         print("Scanning feature not implemented yet.")
         self.show_menu()
 
+    def do_start_cleaning(self, arg):
+        """Manage data broker cleaning requests."""
+        cleaning(self.passphrase)
+        self.show_menu()
+
     def do_quit(self, arg):
         """Exit the tool."""
         print("Exiting GHOSTWIPE.")
@@ -106,7 +110,7 @@ class DataDeleteConsole(cmd.Cmd):
         return True
 
     def complete(self, text, state):
-        options = ['user_info', 'database', 'scan', 'quit']
+        options = ['user_info', 'database', 'scan', 'start_cleaning', 'quit']
         matches = [opt for opt in options if opt.startswith(text)]
         if state < len(matches):
             return matches[state]
